@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: transparent;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: sans-serif;
+    }
+  </style>
+</head>
+<body>
+
+  <div style="background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:20px 24px;max-width:320px;width:100%;">
+    <p style="font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:0.05em;margin:0 0 12px;">Total biodiversity score</p>
+    <svg id="gauge-svg" viewBox="0 0 260 145" width="100%" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div style="text-align:center;margin-top:8px;">
+      <p id="improve-text" style="font-size:14px;font-weight:700;color:#222;margin:0 0 4px;">Potential to improve by 35%</p>
+      <p style="font-size:12px;color:#888;margin:0;line-height:1.5;">
+        With your current land use, you can achieve<br>a biodiversity score of <strong>up to 5*</strong>.
+      </p>
+    </div>
+  </div>
+
+  <script>
+  (function() {
+    var score = 3.3;
+    var maxScore = 5;
+    var cx = 130, cy = 130, r = 90, strokeW = 14;
+    var ns = 'http://www.w3.org/2000/svg';
+
+    function polarToXY(deg, radius) {
+      var rad = (deg - 180) * Math.PI / 180;
+      return [cx + radius * Math.cos(rad), cy + radius * Math.sin(rad)];
+    }
+    function arcPath(s, e, radius) {
+      var sp = polarToXY(s, radius), ep = polarToXY(e, radius);
+      var large = (e - s) > 180 ? 1 : 0;
+      return 'M '+sp[0]+' '+sp[1]+' A '+radius+' '+radius+' 0 '+large+' 1 '+ep[0]+' '+ep[1];
+    }
+    function lerpColor(a, b, t) {
+      var pa=parseInt(a.slice(1),16), pb=parseInt(b.slice(1),16);
+      var ar=(pa>>16)&255,ag=(pa>>8)&255,ab=pa&255;
+      var br=(pb>>16)&255,bg=(pb>>8)&255,bb=pb&255;
+      var rv=Math.round(ar+(br-ar)*t),gv=Math.round(ag+(bg-ag)*t),bv=Math.round(ab+(bb-ab)*t);
+      return '#'+((1<<24)|(rv<<16)|(gv<<8)|bv).toString(16).slice(1);
+    }
+    function scoreColor(frac) {
+      var stops=[[1,'#e03020'],[0.6,'#e05520'],[0.4,'#e08020'],[0,'#d4a017']];
+      for(var i=0;i<stops.length-1;i++){
+        var t1=stops[i][0],c1=stops[i][1],t2=stops[i+1][0],c2=stops[i+1][1];
+        if(frac>=t2) return lerpColor(c2,c1,(frac-t2)/(t1-t2));
+      }
+      return stops[stops.length-1][1];
+    }
+    function draw(val) {
+      var svg=document.getElementById('gauge-svg');
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+      var frac=Math.min(val/maxScore,1);
+
+      var track=document.createElementNS(ns,'path');
+      track.setAttribute('d',arcPath(0,180,r));
+      track.setAttribute('fill','none');
+      track.setAttribute('stroke','#ddd');
+      track.setAttribute('stroke-width',strokeW);
+      track.setAttribute('stroke-linecap','round');
+      svg.appendChild(track);
+
+      for(var i=0;i<60;i++){
+        var t=i/60; if(t>=frac) break;
+        var t2=Math.min((i+1)/60,frac);
+        var seg=document.createElementNS(ns,'path');
+        seg.setAttribute('d',arcPath(t*180,t2*180,r));
+        seg.setAttribute('fill','none');
+        seg.setAttribute('stroke',scoreColor(t));
+        seg.setAttribute('stroke-width',strokeW+2);
+        seg.setAttribute('stroke-linecap','butt');
+        svg.appendChild(seg);
+      }
+
+      for(var j=0;j<=maxScore;j++){
+        var a=j/maxScore*180;
+        var inner=polarToXY(a,r-strokeW/2-5), outer=polarToXY(a,r+strokeW/2+3);
+        var tick=document.createElementNS(ns,'line');
+        tick.setAttribute('x1',inner[0]); tick.setAttribute('y1',inner[1]);
+        tick.setAttribute('x2',outer[0]); tick.setAttribute('y2',outer[1]);
+        tick.setAttribute('stroke','#aaa'); tick.setAttribute('stroke-width','1');
+        svg.appendChild(tick);
+      }
+
+      var scoreEl=document.createElementNS(ns,'text');
+      scoreEl.setAttribute('x',cx); scoreEl.setAttribute('y',cy-4);
+      scoreEl.setAttribute('text-anchor','middle');
+      scoreEl.setAttribute('font-size','30');
+      scoreEl.setAttribute('font-weight','500');
+      scoreEl.setAttribute('fill','#d85a30');
+      scoreEl.textContent=val.toFixed(1)+' / '+maxScore;
+      svg.appendChild(scoreEl);
+
+      var lp=polarToXY(190,r+28);
+      var maxLab=document.createElementNS(ns,'text');
+      maxLab.setAttribute('x',lp[0]+6); maxLab.setAttribute('y',lp[1]-14);
+      maxLab.setAttribute('text-anchor','start');
+      maxLab.setAttribute('font-size','11');
+      maxLab.setAttribute('fill','#999');
+      maxLab.textContent='Max score '+maxScore+'*';
+      svg.appendChild(maxLab);
+
+      var dp=polarToXY(180,r);
+      var dot=document.createElementNS(ns,'circle');
+      dot.setAttribute('cx',dp[0]); dot.setAttribute('cy',dp[1]);
+      dot.setAttribute('r','7'); dot.setAttribute('fill','#ddd');
+      svg.appendChild(dot);
+
+      var pct=Math.round((1-frac)*100);
+      document.getElementById('improve-text').textContent=
+        pct>0 ? 'Potential to improve by '+pct+'%' : 'Maximum score achieved!';
+    }
+
+    draw(score);
+  })();
+  </script>
+
+</body>
+</html>
